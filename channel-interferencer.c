@@ -6,16 +6,13 @@
 
 /**
  * \file
- *         Coordinator Source Code for NES project
+ *         Interference Generator Source Code for NES project
  * \author
- *         Joakim Eriksson, joakime@sics.se
- *          Adam Dunkels, adam@sics.se
- * 			Yuefeng Wu, y.wu.5@student.tue.nl
+ *         Yuefeng Wu, y.wu.5@student.tue.nl
  */
 
 #include "contiki.h"
 #include "net/rime/rime.h"
-#include "sys/etimer.h"
 #include "dev/leds.h"
 #include "net/netstack.h"
 #include "cc2420.h"
@@ -24,17 +21,30 @@
 #include "dev/spi.h"
 #include <stdio.h>
 #include <string.h>
+#include "sys/node-id.h"
+#include <stdlib.h>
 
 
 /*---------------------------------------------------------------------------*/
 /* This is a set of predefined values for this laboratory*/
 
-#define WITH_SEND_CCA 0
+// #define WITH_SEND_CCA 0 /*Turning CCA off, since a jammer does not need CCA!*/
+#define INTERFERENCE_SCENARIO 1 /*Interference scenario setting: 
+                                  0 for Wi-Fi, 
+                                  1 for linear increment,
+                                  2 for randomly generated energy*/
+#define NODE_ID_ALIGNMENT 0  //This value should be the node ID of interferencer working in CH-11 MINUS 1
+
 
 /*---------------------------------------------------------------------------*/
-/* This is a set of global variables for this laboratory*/
-
-int currentChannel = 26;
+/* This is a function to generate random TX power table for this laboratory*/
+static void random_table_generator (char* txPowerTable){
+    unsigned char i;
+    for (i = 0; i < 16; i++ ){
+        *txPowerTable = 9 + rand()%23; //generate a number in [9,31]
+        txPowerTable++;
+    }
+}
 
 
 /*---------------------------------------------------------------------------*/
@@ -43,13 +53,6 @@ AUTOSTART_PROCESSES(&channel_interferencer);
 
 
 /*---------------------------------------------------------------------------*/
-static void
-broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from)
-{
-    printf("broadcast message received from %d.%d: '%s'\n",
-           from->u8[0], from->u8[1], (char *)packetbuf_dataptr());
-}
-static const struct broadcast_callbacks broadcast_call = {broadcast_recv};
 static struct broadcast_conn broadcast;
 /*---------------------------------------------------------------------------*/
 
@@ -61,7 +64,20 @@ PROCESS_THREAD(channel_interferencer, ev, data)
         
         PROCESS_BEGIN();
         
-        broadcast_open(&broadcast, 129, &broadcast_call);
+        /*---------------------------------------------------------------------------*/
+        /* This is a set of interference scenarios for this laboratory*/
+        
+        #if INTERFERENCE_SCENARIO==0
+        unsigned char txPowerTable [16] = {22,30,25,17,10,16,28,25,16,10,22,31,26,18,10,6};
+        #elif INTERFERENCE_SCENARIO==1
+        unsigned char txPowerTable [16] = {2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,31};
+        #else
+        unsigned char txPowerTable [16];
+        random_table_generator(txPowerTable);
+        #endif
+        
+        
+        //broadcast_open(&broadcast, 129, &broadcast_call);
 	
 	/* switch mac layer off, and turn radio on */
 
@@ -70,12 +86,11 @@ PROCESS_THREAD(channel_interferencer, ev, data)
 	
         cc2420_on();
         
-        cc2420_set_txpower(1);
+        cc2420_set_channel(node_id + NODE_ID_ALIGNMENT + 10);
         
+        cc2420_set_txpower(txPowerTable[node_id + NODE_ID_ALIGNMENT - 1]);
         
-        cc2420_set_channel(currentChannel);
-        
-        
+        printf("Channel: %d, jamming on TX power: %d.\n",node_id + NODE_ID_ALIGNMENT + 10, txPowerTable[node_id + NODE_ID_ALIGNMENT - 1]);
         
 	while(1) {
             
