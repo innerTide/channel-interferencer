@@ -30,7 +30,7 @@
 /* This is a set of predefined values for this laboratory*/
 
 // #define WITH_SEND_CCA 0 /*Turning CCA off, since a jammer does not need CCA!*/
-#define INTERFERENCE_SCENARIO 3 /*Interference scenario setting: 
+#define INTERFERENCE_SCENARIO 1 /*Interference scenario setting: 
                                   0 for Wi-Fi, 
                                   1 for linear increment,
                                   2 for randomly generated energy
@@ -115,7 +115,7 @@ PROCESS_THREAD(channel_interferencer, ev, data)
         
 	while(1) {
             
-            etimer_set (&jamTimer, 1*CLOCK_SECOND);
+            etimer_set (&jamTimer, 2);
             PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&jamTimer));
             packetbuf_copyfrom("H", 1);
             broadcast_send(&broadcast);
